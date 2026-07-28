@@ -11,11 +11,21 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object PodsRepository {
 
-    /** A broadcast older than this means the pods are out of range or in a shut case. */
+    /** A view older than this means the pair is out of range or shut in its case. */
     const val STALE_AFTER_MS = 30_000L
 
-    private val _status = MutableStateFlow<PodsStatus?>(null)
-    val status: StateFlow<PodsStatus?> = _status.asStateFlow()
+    private val tracker = PodsTracker()
+
+    private val _view = MutableStateFlow<PodsView?>(null)
+    val view: StateFlow<PodsView?> = _view.asStateFlow()
+
+    /** Everything in radio range, loudest first. Debug screen only. */
+    private val _candidates = MutableStateFlow<List<PodsStatus>>(emptyList())
+    val candidates: StateFlow<List<PodsStatus>> = _candidates.asStateFlow()
+
+    /** True while an audio profile actually has the earbuds attached. */
+    private val _connected = MutableStateFlow(false)
+    val connected: StateFlow<Boolean> = _connected.asStateFlow()
 
     /**
      * True while the activity is on screen. The service watches this instead of the
@@ -29,11 +39,12 @@ object PodsRepository {
     val connectResult: StateFlow<String?> = _connectResult.asStateFlow()
 
     fun publish(status: PodsStatus) {
-        val current = _status.value
-        // A blank payload (every nibble 0xF) shows up when the case is shut. Keep the
-        // last real reading on screen instead of flashing "--" at the user.
-        if (status.isBlank && current != null && !current.isStale()) return
-        _status.value = status
+        _view.value = tracker.accept(status)
+        _candidates.value = tracker.candidates()
+    }
+
+    fun setConnected(connected: Boolean) {
+        _connected.value = connected
     }
 
     fun setUiActive(active: Boolean) {
@@ -45,10 +56,12 @@ object PodsRepository {
     }
 
     fun clear() {
-        _status.value = null
+        tracker.clear()
+        _view.value = null
+        _candidates.value = emptyList()
     }
 }
 
-/** A reading nobody has refreshed in half a minute is history, not status. */
-fun PodsStatus.isStale(now: Long = System.currentTimeMillis()): Boolean =
+/** A view nobody has refreshed in half a minute is history, not status. */
+fun PodsView.isStale(now: Long = System.currentTimeMillis()): Boolean =
     now - seenAt > PodsRepository.STALE_AFTER_MS

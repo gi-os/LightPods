@@ -98,9 +98,11 @@ class ProximityPayloadTest {
     }
 
     @Test
-    fun `unknown model still parses`() {
-        val s = ProximityPayload.parse("AA:BB", payload(0x20, 0x88, 0x18, 0x31, modelId = 0x9999))
-        assertEquals("Earbuds", s!!.model)
+    fun `an unrecognised model is reported as unknown rather than mislabelled`() {
+        val s = ProximityPayload.parse("AA:BB", payload(0x20, 0x88, 0x18, 0x31, modelId = 0x9999))!!
+        assertNull(s.model)
+        assertEquals(0x9999, s.modelId)
+        assertEquals("Earbuds", s.modelLabel)
     }
 
     @Test

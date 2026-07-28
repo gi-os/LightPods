@@ -12,21 +12,25 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.core.content.ContextCompat
+import com.gios.lightpods.bt.AapProbe
+import com.gios.lightpods.bt.MediaControls
 import com.gios.lightpods.bt.PodsConnector
 import com.gios.lightpods.data.PodsRepository
 import com.gios.lightpods.data.isStale
 import com.gios.lightpods.service.PodsService
+import com.gios.lightpods.ui.DebugScreen
 import com.gios.lightpods.ui.HomeScreen
 import com.gios.lightpods.ui.theme.LightPodsTheme
 import kotlinx.coroutines.delay
@@ -52,46 +56,89 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         permissionsGranted = hasPermissions()
 
+        val media = MediaControls(this)
+        val connector = PodsConnector(this)
+
         setContent {
             LightPodsTheme {
                 val scope = rememberCoroutineScope()
-                val status by PodsRepository.status.collectAsState()
+                val view by PodsRepository.view.collectAsState()
+                val candidates by PodsRepository.candidates.collectAsState()
+                val connected by PodsRepository.connected.collectAsState()
                 val connectMessage by PodsRepository.connectResult.collectAsState()
-                var connecting by remember { mutableStateOf(false) }
-                var tick by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-                // Staleness is a function of wall-clock time, not of new data, so the
-                // "out of range" line needs its own heartbeat to appear.
+                var connecting by remember { mutableStateOf(false) }
+                var showDebug by remember { mutableStateOf(false) }
+                var probing by remember { mutableStateOf(false) }
+                var probeResult by remember { mutableStateOf<String?>(null) }
+                var tick by remember { mutableLongStateOf(System.currentTimeMillis()) }
+                var playing by remember { mutableStateOf(false) }
+                var volume by remember { mutableFloatStateOf(0f) }
+
+                // Going out of range, switching Bluetooth off, and pausing playback in
+                // another app all produce silence rather than an event, so the screen
+                // needs its own heartbeat to notice them.
                 LaunchedEffect(Unit) {
                     while (true) {
-                        delay(5_000)
                         tick = System.currentTimeMillis()
+                        playing = media.isPlaying
+                        volume = media.volume()
+                        delay(2_000)
                     }
                 }
 
-                // Both of these are read off the heartbeat rather than off new data:
-                // going out of range and switching Bluetooth off both produce silence,
-                // and silence does not recompose anything on its own.
-                val stale = remember(status, tick) { status?.isStale(tick) == true }
+                val stale = remember(view, tick) { view?.isStale(tick) == true }
                 val bluetoothOn = remember(tick) { isBluetoothOn() }
+
+                if (showDebug) {
+                    DebugScreen(
+                        view = view,
+                        candidates = candidates,
+                        probeResult = probeResult,
+                        probing = probing,
+                        onProbe = {
+                            probing = true
+                            probeResult = null
+                            scope.launch {
+                                val adapter = connector.adapter
+                                val device = connector.targetDevice()
+                                probeResult = when {
+                                    adapter == null -> "no Bluetooth adapter"
+                                    device == null -> "no bonded audio device to probe"
+                                    else -> AapProbe.run(adapter, device).detail
+                                }
+                                probing = false
+                            }
+                        },
+                        onBack = { showDebug = false },
+                    )
+                    return@LightPodsTheme
+                }
 
                 HomeScreen(
                     modifier = Modifier.safeDrawingPadding(),
-                    status = status,
+                    view = view,
                     stale = stale,
                     bluetoothOn = bluetoothOn,
                     permissionsGranted = permissionsGranted,
+                    connected = connected,
+                    playing = playing,
+                    volume = volume,
                     connecting = connecting,
                     connectMessage = connectMessage,
                     onConnect = {
                         connecting = true
                         PodsRepository.setConnectResult(null)
                         scope.launch {
-                            val result = PodsConnector(this@MainActivity).connect()
+                            val result = connector.connect()
                             connecting = false
                             when (result) {
-                                is PodsConnector.Result.Connected ->
-                                    PodsRepository.setConnectResult("${result.device} — ${result.via}")
+                                is PodsConnector.Result.Connected -> {
+                                    PodsRepository.setConnected(true)
+                                    PodsRepository.setConnectResult(
+                                        "${result.device} — ${result.via}",
+                                    )
+                                }
 
                                 PodsConnector.Result.NoDevice ->
                                     PodsRepository.setConnectResult("Pair your earbuds first")
@@ -106,8 +153,23 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     },
+                    onPlayPause = {
+                        media.playPause()
+                        playing = !playing
+                    },
+                    onPrevious = media::previous,
+                    onNext = media::next,
+                    onVolumeUp = {
+                        media.volumeUp()
+                        volume = media.volume()
+                    },
+                    onVolumeDown = {
+                        media.volumeDown()
+                        volume = media.volume()
+                    },
                     onGrantPermissions = { requestPermissions.launch(requiredPermissions()) },
                     onOpenSettings = ::openBluetoothSettings,
+                    onDebug = { showDebug = true },
                 )
             }
         }

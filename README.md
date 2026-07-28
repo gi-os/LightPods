@@ -32,6 +32,26 @@ copy of the battery figures in the same advertisement, and the key only comes ou
 the AAP handshake. LightPods reads the legacy plaintext nibbles. Where firmware has
 stopped filling those in, the app shows `--` rather than inventing a number.
 
+## Picking your earbuds out of the crowd
+
+Every pair of AirPods in radio range broadcasts the same message, and without the
+identity resolving key there is no cryptographic way to tell which pair is yours. An
+app that simply renders whatever arrived last will show a stranger's model name and
+battery figures that jump — on a train it is unusable.
+
+`PodsTracker` ranks the candidates instead. A pair that reports itself in use with
+some phone beats an idle one; after that the nearest wins. The choice is sticky, since
+signal strength swings several dB between advertisements and a naive maximum flaps.
+
+It also merges readings. A single advertisement often carries only the broadcasting
+bud's charge, with the other nibble reading 0xF, and which bud broadcasts alternates —
+so rendering one advertisement at a time shows one bud at a time. Each side keeps its
+last real figure until it goes properly stale.
+
+Long-press the model name for the debug screen: raw advertisement bytes, the model id,
+signal strength, and every pair currently in range. That is the fastest way to tell a
+parsing bug from a neighbour's earbuds.
+
 ## The Connect button
 
 There is no public Android API for "connect my earbuds". `BluetoothA2dp.connect()`
@@ -45,6 +65,13 @@ cannot hold. `PodsConnector` tries three things and tells you which one worked:
 
 If all three fail the app opens the system Bluetooth page instead of pretending.
 Expect (3) to be the one that fires on LightOS.
+
+Once the earbuds are attached the Connect button is replaced by transport and volume
+controls, which go through `AudioManager.dispatchMediaKeyEvent` and need no permission
+at all. Noise control and transparency would belong in that same row; they are behind
+AAP, so they are not there. The debug screen has a one-tap AAP probe that tries to open
+L2CAP 0x1001 and reports exactly how it is refused — worth running once on your own
+handset rather than taking the paragraph above on trust.
 
 ## Install
 

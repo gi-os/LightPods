@@ -123,10 +123,15 @@ class AirPodsScanner(private val context: Context) {
 
     private fun handle(result: ScanResult) {
         val data = result.scanRecord?.getManufacturerSpecificData(ProximityPayload.APPLE_COMPANY_ID) ?: return
-        // AirPods rotate their advertising address every ~15 minutes. Pinning to one
-        // address would need the identity resolving key, which only the AAP handshake
-        // hands over, so we accept any Apple proximity broadcast in range instead.
-        val status = ProximityPayload.parse(result.device.address, data) ?: return
+        // Every pair of AirPods in radio range lands here, not just ours: pinning to
+        // one address needs the identity resolving key, which only the AAP handshake
+        // hands over, and the address rotates every ~15 minutes anyway. Picking our
+        // own out of the crowd is PodsTracker's job.
+        val status = ProximityPayload.parse(
+            address = result.device.address,
+            data = data,
+            rssi = result.rssi,
+        ) ?: return
         onStatus?.invoke(status)
     }
 

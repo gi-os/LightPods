@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -59,6 +60,30 @@ fun ActionButton(
                 enabled -> Color.White
                 else -> Faint
             },
+        )
+    }
+}
+
+/**
+ * One key in a row of equal-width controls. Text rather than glyphs: the panel is
+ * greyscale and matte, Akkurat has no transport symbols, and LightOS labels its own
+ * controls in words.
+ */
+@Composable
+fun RowScope.KeyButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .weight(1f)
+            .height(56.dp)
+            .border(1.dp, if (enabled) Color.White else RuleGrey)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (enabled) Color.White else Faint,
+            maxLines = 1,
         )
     }
 }

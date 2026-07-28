@@ -43,7 +43,7 @@ class PodsConnector(private val context: Context) {
         data class Failed(val detail: String) : Result
     }
 
-    private val adapter: BluetoothAdapter?
+    val adapter: BluetoothAdapter?
         get() = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
 
     /** The Apple audio device we most likely want, out of everything already bonded. */
@@ -78,6 +78,12 @@ class PodsConnector(private val context: Context) {
         aclPoke(device)?.let { return Result.Connected(it, label) }
 
         return Result.Failed("open Bluetooth settings")
+    }
+
+    /** True when either audio profile already has the earbuds attached. */
+    suspend fun isConnected(): Boolean {
+        val device = targetDevice() ?: return false
+        return isConnected(device)
     }
 
     /** True when either audio profile already has the device attached. */

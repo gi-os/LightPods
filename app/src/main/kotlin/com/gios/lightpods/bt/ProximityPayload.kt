@@ -12,7 +12,10 @@ package com.gios.lightpods.bt
 /** Everything a single proximity-pairing broadcast tells us. */
 data class PodsStatus(
     val address: String,
-    val model: String,
+    /** Raw advertised model, kept so an unrecognised one can still be reported. */
+    val modelId: Int,
+    /** null when the id is not one we recognise — better than naming it wrongly. */
+    val model: String?,
     val color: String,
     val connection: String,
     val paired: Boolean,
@@ -26,11 +29,50 @@ data class PodsStatus(
     val rightInEar: Boolean,
     val lidOpen: Boolean,
     val seenAt: Long,
+    /** Signal strength of the advertisement that produced this, in dBm. */
+    val rssi: Int = 0,
+    /** The advertisement exactly as received, for the debug screen. */
+    val raw: ByteArray = ByteArray(0),
 ) {
     /** True when the advertisement carried no battery figure at all (all nibbles 0xF). */
     val isBlank: Boolean get() = leftBattery == null && rightBattery == null && caseBattery == null
 
     val worstBattery: Int? get() = listOfNotNull(leftBattery, rightBattery).minOrNull()
+
+    /** What to put on screen when the model id is not in our table. */
+    val modelLabel: String get() = model ?: "Earbuds"
+
+    /** Anything other than Disconnected means these are talking to some phone. */
+    val inUse: Boolean get() = connection != "Disconnected" && connection != "Unknown"
+
+    // A ByteArray member kills the generated equals/hashCode, and equality drives the
+    // repository's change detection, so both are written out by hand.
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is PodsStatus) return false
+        return address == other.address &&
+            modelId == other.modelId &&
+            leftBattery == other.leftBattery &&
+            rightBattery == other.rightBattery &&
+            caseBattery == other.caseBattery &&
+            leftCharging == other.leftCharging &&
+            rightCharging == other.rightCharging &&
+            caseCharging == other.caseCharging &&
+            leftInEar == other.leftInEar &&
+            rightInEar == other.rightInEar &&
+            lidOpen == other.lidOpen &&
+            connection == other.connection
+    }
+
+    override fun hashCode(): Int {
+        var result = address.hashCode()
+        result = 31 * result + modelId
+        result = 31 * result + (leftBattery ?: -1)
+        result = 31 * result + (rightBattery ?: -1)
+        result = 31 * result + (caseBattery ?: -1)
+        result = 31 * result + connection.hashCode()
+        return result
+    }
 }
 
 /**
@@ -60,6 +102,10 @@ object ProximityPayload {
         0x1320 to "AirPods 3",
         0x1920 to "AirPods 4",
         0x1B20 to "AirPods 4 ANC",
+        // AirPods Pro 3 is absent on purpose: LibrePods identifies it by the model
+        // number it reads over AAP (A3063/A3064/A3065), not by an advertised id, so
+        // there is no verified id to put here. Guessing one produces exactly the bug
+        // this comment exists because of — a Pro 3 labelled "AirPods 4".
         0x0E20 to "AirPods Pro",
         0x1420 to "AirPods Pro 2",
         0x2420 to "AirPods Pro 2 USB-C",
@@ -83,7 +129,12 @@ object ProximityPayload {
      * @param data the manufacturer-specific bytes for company 0x004C, type byte included.
      * @return null when the payload is not a proximity message or is too short to read.
      */
-    fun parse(address: String, data: ByteArray, now: Long = System.currentTimeMillis()): PodsStatus? {
+    fun parse(
+        address: String,
+        data: ByteArray,
+        now: Long = System.currentTimeMillis(),
+        rssi: Int = 0,
+    ): PodsStatus? {
         if (data.size < MIN_USABLE_SIZE) return null
         if (data[0] != TYPE_PROXIMITY_PAIRING) return null
 
@@ -122,7 +173,8 @@ object ProximityPayload {
 
         return PodsStatus(
             address = address,
-            model = MODELS[modelId] ?: "Earbuds",
+            modelId = modelId,
+            model = MODELS[modelId],
             color = color,
             connection = connection,
             paired = paired,
@@ -136,6 +188,8 @@ object ProximityPayload {
             rightInEar = rightInEar,
             lidOpen = lidOpen,
             seenAt = now,
+            rssi = rssi,
+            raw = data.copyOf(),
         )
     }
 
