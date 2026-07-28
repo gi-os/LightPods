@@ -22,7 +22,6 @@ import com.gios.lightpods.bt.AirPodsScanner
 import com.gios.lightpods.bt.PodsStatus
 import com.gios.lightpods.data.PodsRepository
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -79,7 +78,9 @@ class PodsService : LifecycleService() {
         )
 
         lifecycleScope.launch {
-            PodsRepository.uiActive.distinctUntilChanged().collectLatest { active ->
+            // No distinctUntilChanged here: StateFlow already conflates equal
+            // values, and applying it is an error rather than a warning in Kotlin 2.
+            PodsRepository.uiActive.collectLatest { active ->
                 currentMode = if (active) AirPodsScanner.Mode.ACTIVE else AirPodsScanner.Mode.IDLE
                 scanner.start(currentMode)
             }
