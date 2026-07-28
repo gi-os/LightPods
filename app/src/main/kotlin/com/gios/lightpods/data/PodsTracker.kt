@@ -17,6 +17,7 @@ data class PodsView(
     val rightInEar: Boolean,
     val lidOpen: Boolean,
     val connection: String,
+    val statusByte: Int,
     val rssi: Int,
     val seenAt: Long,
     val raw: ByteArray = ByteArray(0),
@@ -77,6 +78,23 @@ class PodsTracker(private val now: () -> Long = System::currentTimeMillis) {
         return candidates.values.sortedByDescending { it.rssi }
     }
 
+    /**
+     * Re-applies the reading timeout without a new advertisement. Nothing arrives when
+     * a bud goes into a shut case, so without this its charge would sit on screen
+     * indefinitely, looking current.
+     */
+    fun expire(): PodsView? {
+        val current = view ?: return null
+        val at = now()
+        val expired = current.copy(
+            left = keep(current.left, null, false, at),
+            right = keep(current.right, null, false, at),
+            case = keep(current.case, null, false, at),
+        )
+        view = expired
+        return expired
+    }
+
     fun selectedAddress(): String? = view?.address
 
     fun clear() {
@@ -116,6 +134,7 @@ class PodsTracker(private val now: () -> Long = System::currentTimeMillis) {
         rightInEar = s.rightInEar,
         lidOpen = s.lidOpen,
         connection = s.connection,
+        statusByte = s.statusByte,
         rssi = s.rssi,
         seenAt = s.seenAt,
         raw = s.raw,
@@ -130,6 +149,7 @@ class PodsTracker(private val now: () -> Long = System::currentTimeMillis) {
         rightInEar = s.rightInEar,
         lidOpen = s.lidOpen,
         connection = s.connection,
+        statusByte = s.statusByte,
         rssi = s.rssi,
         seenAt = s.seenAt,
         raw = s.raw,
@@ -145,10 +165,14 @@ class PodsTracker(private val now: () -> Long = System::currentTimeMillis) {
 
     private companion object {
         /** How long a pair stays in the running after its last advertisement. */
-        const val CANDIDATE_TTL_MS = 30_000L
+        const val CANDIDATE_TTL_MS = 15_000L
 
-        /** How long one side's charge stays on screen without being re-broadcast. */
-        const val READING_TTL_MS = 120_000L
+        /**
+         * How long one side's charge stays on screen without being re-broadcast.
+         * Long enough to bridge the gap while the buds take turns advertising, short
+         * enough that a bud you put away stops claiming to be at 70%.
+         */
+        const val READING_TTL_MS = 20_000L
 
         /** A rival has to be this much louder before it takes over, in dB. */
         const val SWITCH_MARGIN_DB = 12

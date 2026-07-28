@@ -164,10 +164,12 @@ private fun VolumeMeter(volume: Float, modifier: Modifier = Modifier) {
 @Composable
 private fun Readout(view: PodsView, stale: Boolean) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+        // Out of range means we have no idea what the charge is now, so say nothing
+        // rather than leaving the last figure sitting there looking current.
         Row(Modifier.fillMaxWidth()) {
-            SideColumn("Left", view.left, if (view.leftInEar) "In ear" else null, Modifier.weight(1f))
+            SideColumn("Left", view.left.takeUnless { stale }, Modifier.weight(1f))
             Spacer(Modifier.width(24.dp))
-            SideColumn("Right", view.right, if (view.rightInEar) "In ear" else null, Modifier.weight(1f))
+            SideColumn("Right", view.right.takeUnless { stale }, Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(28.dp))
@@ -175,7 +177,7 @@ private fun Readout(view: PodsView, stale: Boolean) {
         Spacer(Modifier.height(20.dp))
 
         Row(Modifier.fillMaxWidth()) {
-            SideColumn("Case", view.case, if (view.lidOpen) "Open" else "Closed", Modifier.weight(1f))
+            SideColumn("Case", view.case.takeUnless { stale }, Modifier.weight(1f))
             Spacer(Modifier.width(24.dp))
             Column(Modifier.weight(1f)) {
                 Caption("Status")
@@ -196,17 +198,21 @@ private fun Readout(view: PodsView, stale: Boolean) {
     }
 }
 
+/**
+ * No in-ear or lid caption. Those bits come out of the same status byte and are not
+ * dependable — they report "in ear" with the buds shut in the case — so the only note
+ * here is charging, which is. Both are still visible on the debug screen.
+ */
 @Composable
 private fun SideColumn(
     label: String,
     reading: Reading?,
-    note: String?,
     modifier: Modifier = Modifier,
 ) = PodColumn(
     label = label,
     percent = reading?.percent,
     charging = reading?.charging == true,
-    note = note,
+    note = null,
     modifier = modifier,
 )
 

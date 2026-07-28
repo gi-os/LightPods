@@ -49,6 +49,8 @@ fun DebugScreen(
             Mono("address   ${view.address}")
             Mono("rssi      ${view.rssi} dBm")
             Mono("state     ${view.connection}")
+            Mono("status    0x%02X  (bits %s)".format(view.statusByte, view.statusByte.toString(2).padStart(8, '0')))
+            Mono("in-ear?   L ${view.leftInEar}  R ${view.rightInEar}   lid open ${view.lidOpen}")
             Mono("left      ${view.left?.percent ?: "--"}  right ${view.right?.percent ?: "--"}  case ${view.case?.percent ?: "--"}")
             Spacer(Modifier.height(8.dp))
             Mono(view.raw.joinToString(" ") { "%02x".format(it) })
@@ -72,8 +74,9 @@ fun DebugScreen(
         Caption("AAP probe")
         Spacer(Modifier.height(8.dp))
         Text(
-            "Tries to open L2CAP 0x1001, the channel the listening modes live behind. " +
-                "Expected to fail on Android 14; the wording says which wall we hit.",
+            "Tries to open L2CAP 0x1001, the channel the listening modes and real ear " +
+                "detection live behind. Expected to fail on Android 14; the wording " +
+                "says which wall we hit.",
             style = MaterialTheme.typography.bodyMedium,
             color = Dim,
         )

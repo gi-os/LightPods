@@ -28,6 +28,8 @@ data class PodsStatus(
     val leftInEar: Boolean,
     val rightInEar: Boolean,
     val lidOpen: Boolean,
+    /** Raw status byte, so the in-ear bits can be inspected rather than trusted. */
+    val statusByte: Int,
     val seenAt: Long,
     /** Signal strength of the advertisement that produced this, in dBm. */
     val rssi: Int = 0,
@@ -156,6 +158,10 @@ object ProximityPayload {
         val earSwapped = primaryLeft xor thisInCase
         val flipped = !primaryLeft
 
+        // These two are decoded for the debug screen only. The bits are not reliable
+        // in practice — they read "in ear" with the buds sitting in a shut case — and
+        // LibrePods does not trust them either: its UI takes ear detection from the
+        // AAP channel, not from here. Nothing user-facing reads them.
         val leftInEar = if (earSwapped) (status and 0x08) != 0 else (status and 0x02) != 0
         val rightInEar = if (earSwapped) (status and 0x02) != 0 else (status and 0x08) != 0
 
@@ -187,6 +193,7 @@ object ProximityPayload {
             leftInEar = leftInEar,
             rightInEar = rightInEar,
             lidOpen = lidOpen,
+            statusByte = status,
             seenAt = now,
             rssi = rssi,
             raw = data.copyOf(),

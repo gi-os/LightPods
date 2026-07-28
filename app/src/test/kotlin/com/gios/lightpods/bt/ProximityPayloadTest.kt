@@ -37,6 +37,12 @@ class ProximityPayloadTest {
     }
 
     @Test
+    fun `the raw status byte is kept for inspection`() {
+        val s = ProximityPayload.parse("AA:BB", payload(0x2B, 0x87, 0x59, 0x31), now = 1L)!!
+        assertEquals(0x2B, s.statusByte)
+    }
+
+    @Test
     fun `primary right swaps the battery nibbles back`() {
         val s = ProximityPayload.parse("AA:BB", payload(0x0B, 0x87, 0x59, 0x31), now = 1L)!!
 
@@ -46,8 +52,6 @@ class ProximityPayloadTest {
         assertFalse(s.leftCharging)
         assertTrue(s.rightCharging)
         assertTrue(s.caseCharging)
-        assertTrue(s.leftInEar)
-        assertTrue(s.rightInEar)
         assertTrue(s.lidOpen)
         assertEquals("AirPods Pro 2", s.model)
     }
@@ -59,8 +63,6 @@ class ProximityPayloadTest {
         assertEquals(90, s.leftBattery)
         assertEquals(90, s.rightBattery)
         assertEquals(100, s.caseBattery)
-        assertFalse(s.leftInEar)
-        assertFalse(s.rightInEar)
         assertFalse(s.lidOpen)
         assertTrue(s.rightCharging)
     }

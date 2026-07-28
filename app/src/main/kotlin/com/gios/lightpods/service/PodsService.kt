@@ -108,6 +108,15 @@ class PodsService : LifecycleService() {
         }
 
         lifecycleScope.launch {
+            // Readings expire on wall-clock time, and silence raises no event, so the
+            // ageing has to be driven rather than observed. No radio work, just a timer.
+            while (true) {
+                kotlinx.coroutines.delay(EXPIRY_TICK_MS)
+                PodsRepository.refresh()
+            }
+        }
+
+        lifecycleScope.launch {
             PodsRepository.view.collectLatest { status ->
                 val summary = status?.let(::summarise)
                 // Rebuilding the notification on every advertisement would wake the
@@ -181,6 +190,7 @@ class PodsService : LifecycleService() {
     }
 
     companion object {
+        private const val EXPIRY_TICK_MS = 5_000L
         private const val CHANNEL_ID = "pods_status"
         private const val NOTIFICATION_ID = 1
         /** Only ever call this while the app is on screen; see PodsRepository.uiActive. */

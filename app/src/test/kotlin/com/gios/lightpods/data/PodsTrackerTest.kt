@@ -34,6 +34,7 @@ class PodsTrackerTest {
         leftInEar = false,
         rightInEar = false,
         lidOpen = false,
+        statusByte = 0x20,
         seenAt = clock,
         rssi = rssi,
     )
@@ -60,11 +61,29 @@ class PodsTrackerTest {
     @Test
     fun `a remembered figure is dropped once it goes properly stale`() {
         tracker.accept(advert(left = 80))
-        clock += 121_000
+        clock += 21_000
         val view = tracker.accept(advert(right = 70))!!
 
         assertNull(view.left)
         assertEquals(70, view.right?.percent)
+    }
+
+    @Test
+    fun `a bud that stops broadcasting ages out without any new advertisement`() {
+        tracker.accept(advert(left = 80, right = 70))
+        clock += 21_000
+
+        val view = tracker.expire()!!
+        assertNull(view.left)
+        assertNull(view.right)
+    }
+
+    @Test
+    fun `expiry leaves a reading that is still current alone`() {
+        tracker.accept(advert(left = 80))
+        clock += 5_000
+
+        assertEquals(80, tracker.expire()?.left?.percent)
     }
 
     @Test
@@ -107,7 +126,7 @@ class PodsTrackerTest {
     @Test
     fun `a candidate that stops broadcasting leaves the running`() {
         tracker.accept(advert(address = "AA:01", rssi = -40))
-        clock += 31_000
+        clock += 16_000
         tracker.accept(advert(address = "BB:02", modelId = 0x1920, rssi = -80))
 
         assertEquals(listOf("BB:02"), tracker.candidates().map { it.address })

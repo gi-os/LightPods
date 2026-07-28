@@ -3,9 +3,9 @@
 AirPods battery and status on the Light Phone III. Sideloaded APK, launcher label
 **Earbuds**.
 
-Shows left, right and case charge, in-ear and lid state, and offers a best-effort
-Connect button — all without root, without Google Play Services, and without the
-phone ever pretending to be an iPhone.
+Shows left, right and case charge, and offers a best-effort Connect button plus media
+controls — all without root, without Google Play Services, and without the phone ever
+pretending to be an iPhone.
 
 <!-- screenshots go in docs/screenshots once it is running on hardware -->
 
@@ -15,8 +15,14 @@ AirPods speak two protocols. LightPods uses the one that is reachable.
 
 **Reachable — BLE proximity advertisements.** The buds broadcast a 25-byte
 manufacturer payload (Apple company ID `0x004C`, type `0x07`) continuously and in the
-clear. It carries battery deciles for both buds and the case, charging flags, in-ear
-detection and lid state. Reading it needs nothing but a scan permission.
+clear. It carries battery deciles for both buds and the case plus charging flags.
+Reading it needs nothing but a scan permission.
+
+The same payload has bits that look like in-ear and lid state, and they are decoded,
+but nothing user-facing reads them: in practice they report "in ear" with the buds shut
+in their case. LibrePods does not trust them either — its UI takes ear detection from
+the AAP channel. Both are shown on the debug screen so the bits can be worked out
+against real hardware rather than guessed at.
 
 **Not reachable — AAP over L2CAP (PSM `0x1001`).** Noise-control modes, transparency,
 gesture remapping, ear-detection toggles and conversational awareness all live behind
@@ -46,7 +52,12 @@ signal strength swings several dB between advertisements and a naive maximum fla
 It also merges readings. A single advertisement often carries only the broadcasting
 bud's charge, with the other nibble reading 0xF, and which bud broadcasts alternates —
 so rendering one advertisement at a time shows one bud at a time. Each side keeps its
-last real figure until it goes properly stale.
+last real figure for 20 seconds: long enough to bridge the gap while the buds take
+turns, short enough that a bud you put away stops claiming to be at 70%.
+
+That expiry is driven by a timer rather than observed, because a bud going quiet
+produces no event to react to. The service ages the readings every 5 seconds and the
+screen goes blank rather than stale once the pair has been silent for 12.
 
 Long-press the model name for the debug screen: raw advertisement bytes, the model id,
 signal strength, and every pair currently in range. That is the fastest way to tell a

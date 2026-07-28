@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 object PodsRepository {
 
     /** A view older than this means the pair is out of range or shut in its case. */
-    const val STALE_AFTER_MS = 30_000L
+    const val STALE_AFTER_MS = 12_000L
 
     private val tracker = PodsTracker()
 
@@ -40,6 +40,12 @@ object PodsRepository {
 
     fun publish(status: PodsStatus) {
         _view.value = tracker.accept(status)
+        _candidates.value = tracker.candidates()
+    }
+
+    /** Age out readings on a timer, since silence produces no advertisement to react to. */
+    fun refresh() {
+        _view.value = tracker.expire()
         _candidates.value = tracker.candidates()
     }
 
