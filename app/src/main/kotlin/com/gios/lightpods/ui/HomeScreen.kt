@@ -24,6 +24,7 @@ import com.gios.lightpods.ui.theme.Faint
 
 @Composable
 fun HomeScreen(
+    modifier: Modifier = Modifier,
     status: PodsStatus?,
     stale: Boolean,
     bluetoothOn: Boolean,
@@ -35,7 +36,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
 ) {
     Column(
-        Modifier
+        modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp, vertical = 24.dp),
     ) {

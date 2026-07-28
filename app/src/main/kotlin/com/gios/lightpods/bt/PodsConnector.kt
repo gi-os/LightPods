@@ -12,6 +12,7 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -163,7 +164,9 @@ class PodsConnector(private val context: Context) {
 
     /** getProfileProxy is callback based; wrap it so the chain above stays readable. */
     private suspend fun proxy(adapter: BluetoothAdapter, profile: Int): BluetoothProfile? =
-        runCatching {
+        try {
+            // Deliberately not runCatching: that would also swallow the cancellation
+            // thrown when the caller's scope dies, and the chain would run on.
             withTimeout(PROXY_TIMEOUT_MS) {
                 suspendCancellableCoroutine<BluetoothProfile?> { cont ->
                     val listener = object : BluetoothProfile.ServiceListener {
@@ -178,7 +181,9 @@ class PodsConnector(private val context: Context) {
                     }
                 }
             }
-        }.getOrNull()
+        } catch (_: TimeoutCancellationException) {
+            null
+        }
 
     private companion object {
         const val TAG = "LightPods/Connect"

@@ -33,6 +33,13 @@ class AirPodsScanner(private val context: Context) {
     private var callback: ScanCallback? = null
     private var mode: Mode? = null
 
+    /**
+     * Batched scanning needs offloaded filtering in the controller. Where that is
+     * missing the framework rejects any request with a report delay, so the first
+     * such rejection makes us give up on batching for the life of the process.
+     */
+    private var batchingRejected = false
+
     var onStatus: ((PodsStatus) -> Unit)? = null
 
     val adapter: BluetoothAdapter?
@@ -61,25 +68,39 @@ class AirPodsScanner(private val context: Context) {
             .setManufacturerData(ProximityPayload.APPLE_COMPANY_ID, prefix, mask)
             .build()
 
+        val reportDelay = if (batchingRejected) 0L else newMode.reportDelayMs
         val settings = ScanSettings.Builder()
             .setScanMode(newMode.scanMode)
             .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .setNumOfMatches(ScanSettings.MATCH_NUM_MAX_ADVERTISEMENT)
-            .setReportDelay(newMode.reportDelayMs)
+            .setReportDelay(reportDelay)
             .build()
 
         val cb = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) = handle(result)
 
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
-                // Keep only the freshest broadcast per address; a batch can hold several.
+                // Keep only the freshest broadcast per address; a batch holds several,
+                // and nothing promises they arrive in timestamp order.
                 results.groupBy { it.device.address }
-                    .forEach { (_, group) -> handle(group.last()) }
+                    .forEach { (_, group) ->
+                        group.maxByOrNull { it.timestampNanos }?.let(::handle)
+                    }
             }
 
             override fun onScanFailed(errorCode: Int) {
                 Log.e(TAG, "scan failed: $errorCode")
+                // startScan() returns void and reports failure here, so without this
+                // reset the object would believe it is scanning and never retry.
+                val failed = mode
+                callback = null
+                mode = null
+                if (!batchingRejected && failed != null && failed.reportDelayMs > 0L) {
+                    batchingRejected = true
+                    Log.d(TAG, "retrying unbatched")
+                    start(failed)
+                }
             }
         }
 

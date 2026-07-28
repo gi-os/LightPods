@@ -1,7 +1,8 @@
 package com.gios.lightpods
 
 import android.Manifest
-import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -9,13 +10,17 @@ import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.core.content.ContextCompat
 import com.gios.lightpods.bt.PodsConnector
@@ -42,6 +47,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Targeting SDK 35 forces edge to edge, so the theme's bar colours stop
+        // applying and the content has to inset itself.
+        enableEdgeToEdge()
         permissionsGranted = hasPermissions()
 
         setContent {
@@ -50,7 +58,7 @@ class MainActivity : ComponentActivity() {
                 val status by PodsRepository.status.collectAsState()
                 val connectMessage by PodsRepository.connectResult.collectAsState()
                 var connecting by remember { mutableStateOf(false) }
-                var tick by remember { mutableStateOf(System.currentTimeMillis()) }
+                var tick by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
                 // Staleness is a function of wall-clock time, not of new data, so the
                 // "out of range" line needs its own heartbeat to appear.
@@ -65,11 +73,10 @@ class MainActivity : ComponentActivity() {
                 // going out of range and switching Bluetooth off both produce silence,
                 // and silence does not recompose anything on its own.
                 val stale = remember(status, tick) { status?.isStale(tick) == true }
-                val bluetoothOn = remember(tick) {
-                    BluetoothAdapter.getDefaultAdapter()?.isEnabled == true
-                }
+                val bluetoothOn = remember(tick) { isBluetoothOn() }
 
                 HomeScreen(
+                    modifier = Modifier.safeDrawingPadding(),
                     status = status,
                     stale = stale,
                     bluetoothOn = bluetoothOn,
@@ -108,6 +115,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        // Permissions can also be granted from the system settings page or over ADB,
+        // neither of which comes back through the result callback.
+        permissionsGranted = hasPermissions()
         PodsRepository.setUiActive(true)
         if (permissionsGranted) PodsService.start(this)
     }
@@ -119,6 +129,10 @@ class MainActivity : ComponentActivity() {
         // in the background is refused on Android 12 and up.
         PodsRepository.setUiActive(false)
     }
+
+    private fun isBluetoothOn(): Boolean =
+        (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)
+            ?.adapter?.isEnabled == true
 
     private fun openBluetoothSettings() {
         runCatching { startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }

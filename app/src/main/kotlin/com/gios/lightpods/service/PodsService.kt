@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
-import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -53,15 +52,24 @@ class PodsService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        // API 34 wants the type restated at start time, not just in the manifest.
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            buildNotification(null),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
-        )
-
         scanner = AirPodsScanner(this).apply { onStatus = PodsRepository::publish }
+
+        // API 34 wants the type restated at start time, not just in the manifest.
+        // This can also be refused outright: the system may recreate a sticky service
+        // while the process is in the background, which is precisely the case
+        // Android 12 forbids from starting one. Losing the service beats crashing.
+        val promoted = runCatching {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                buildNotification(null),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE,
+            )
+        }.isSuccess
+        if (!promoted) {
+            stopSelf()
+            return
+        }
         // targetSdk 34 makes the export flag mandatory; this one is system-only.
         ContextCompat.registerReceiver(
             this,
@@ -93,11 +101,13 @@ class PodsService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         scanner.start(currentMode)
-        return START_STICKY
+        // The activity starts us again in onStart, so there is nothing to gain from a
+        // sticky restart into a background process that cannot go foreground anyway.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
-        scanner.stop()
+        if (::scanner.isInitialized) scanner.stop()
         runCatching { unregisterReceiver(bluetoothState) }
         super.onDestroy()
     }
@@ -111,7 +121,6 @@ class PodsService : LifecycleService() {
         get() = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     private fun createChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Earbud battery",
@@ -150,11 +159,9 @@ class PodsService : LifecycleService() {
         private const val NOTIFICATION_ID = 1
         /** Only ever call this while the app is on screen; see PodsRepository.uiActive. */
         fun start(context: Context) {
-            context.startForegroundService(Intent(context, PodsService::class.java))
-        }
-
-        fun stop(context: Context) {
-            context.stopService(Intent(context, PodsService::class.java))
+            runCatching {
+                context.startForegroundService(Intent(context, PodsService::class.java))
+            }
         }
     }
 }
