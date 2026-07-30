@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.gios.lightpods.bt.PodsStatus
 import com.gios.lightpods.data.PodsView
+import com.gios.lightpods.hw.WheelScroll
 import com.gios.lightpods.ui.theme.Dim
 
 /**
@@ -32,10 +33,15 @@ fun DebugScreen(
     onProbe: () -> Unit,
     onBack: () -> Unit,
 ) {
+    // The raw advertisement is longer than the panel, and this is the screen you read with
+    // one hand while the other holds the earbuds.
+    val scroll = rememberScrollState()
+    WheelScroll(scroll)
+
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scroll)
             .padding(horizontal = 20.dp, vertical = 24.dp),
     ) {
         Caption("Advertisement")

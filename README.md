@@ -84,6 +84,24 @@ AAP, so they are not there. The debug screen has a one-tap AAP probe that tries 
 L2CAP 0x1001 and reports exactly how it is refused — worth running once on your own
 handset rather than taking the paragraph above on trust.
 
+## The wheel
+
+The brightness wheel scrolls the debug screen. Nothing else in the app is longer than the
+panel — a battery figure you have to scroll to is a battery figure you may as well not have
+— so that is the only place a notch does anything.
+
+It reaches the app at all because Light patched `/system/usr/keylayout/Generic.kl`, so each
+notch of the `Pixart pat9126ja` sensor arrives as an ordinary key event and nothing above the
+app intercepts it. `hw/LightKeys.kt` resolves `WHEEL_CCW` and `WHEEL_CW` by label at runtime
+and falls back to the raw scancode gated on the device name, so a paired keyboard's `r`
+doesn't scroll anything. Turns only: the click and the camera button belong to
+[LightControl](https://github.com/gi-os/LightControl), which owns them phone-wide and passes
+bare turns through so that apps can scroll per notch instead of being handed a synthetic
+finger. Notches are frame-timed into a glide rather than applied on arrival, and the first
+notch after a pause waits for a second to confirm it, because the wheel sits under a thumb.
+Both are explained at length in
+[LightNews](https://github.com/gi-os/LightNews#the-wheel-and-the-camera-button).
+
 ## Install
 
 ```sh
@@ -136,6 +154,7 @@ bt/AirPodsScanner.kt     controller-side scan filter, two duty cycles
 bt/PodsConnector.kt      the three-step connect chain
 data/PodsRepository.kt   process-wide StateFlow shared by service and UI
 service/PodsService.kt   foreground service, ongoing status notification
+hw/                      the brightness wheel, turns only
 ui/                      Compose, greyscale, Akkurat pulled from LightOS
 ```
 
