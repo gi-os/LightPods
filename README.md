@@ -6,9 +6,9 @@ AirPods battery and status on the Light Phone III. Sideloaded APK, launcher labe
 Shows left, right and case charge, plus a best-effort Connect button and media
 controls once attached — all without root, without Google Play Services, and without
 the phone ever pretending to be an iPhone. Built from the
-[LightPass](https://github.com/gi-os/LightPass) skeleton, since the Light SDK's
+[BrightPasses](https://github.com/gi-os/BrightPasses) skeleton, since the Light SDK's
 dependency allowlist has no Bluetooth permission at all (see
-[light-sdk-sandbox-limits](https://github.com/gi-os/LightPass) background) and blocks
+[light-sdk-sandbox-limits](https://github.com/gi-os/BrightPasses) background) and blocks
 `getSystemService`, `Context`, `registerReceiver`, `bindService` and reflection — a
 Bluetooth tool cannot be built as an SDK tool, only as a plain APK.
 
@@ -89,7 +89,7 @@ for any Apple proximity advertisement in range; no further configuration exists.
   tell a parsing bug from a neighbour's earbuds.
 - **The wheel** scrolls the debug screen only — nothing else in the app is longer than
   the panel. It arrives as an ordinary key event (LightOS relabels the optical sensor's
-  scancodes `WHEEL_CCW`/`WHEEL_CW`); [LightControl](https://github.com/gi-os/LightControl)
+  scancodes `WHEEL_CCW`/`WHEEL_CW`); [BrightControl](https://github.com/gi-os/BrightControl)
   is the separate, optional app that owns the wheel click and camera button phone-wide
   and passes bare turns through to `com.gios.*`.
 - **Battery cost.** The scan filter runs in the Bluetooth controller, not the app, so
