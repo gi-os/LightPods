@@ -1,5 +1,7 @@
 # LightPods
 
+[**⬇ Download the latest APK**](https://github.com/gi-os/LightPods/releases/latest) · free, open source.
+
 AirPods battery and status on the Light Phone III. Sideloaded APK, launcher label
 **Earbuds**, package `com.gios.lightpods`. Current release: **v1.0.7**.
 
